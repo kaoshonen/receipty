@@ -10,6 +10,7 @@ A lightweight web UI and API to send plain-text jobs to an Epson TM-T88IV receip
 - Immediate print submit with queued job ids
 - Printer status checks and readiness endpoints
 - SQLite-backed job audit trail with error stacks
+- Reprint previous jobs from the Activity log
 - USB device path override and Ethernet RAW TCP
 - Docker Compose profiles for usb and ethernet
 
@@ -22,6 +23,7 @@ npm run dev
 Create `.env` from the example below and run the server. By default it binds to `127.0.0.1:3000`.
 
 ## Docker Compose
+Profiles are required for usb/ethernet. If you omit `--profile`, Compose will report "no service selected".
 ```bash
 docker compose --profile ethernet up --build
 ```
@@ -29,6 +31,19 @@ docker compose --profile ethernet up --build
 For USB, ensure device mappings match your host:
 ```bash
 docker compose --profile usb up --build
+```
+
+### Docker Hub (remote servers)
+Use the published image instead of `build: .`:
+```bash
+docker compose --profile ethernet pull
+docker compose --profile ethernet up -d
+```
+
+If the container fails with `SQLITE_CANTOPEN`, ensure the data volume is writable:
+```bash
+docker compose --profile ethernet run --rm --user root receipty-ethernet \
+  sh -c "mkdir -p /app/data && chown -R node:node /app/data"
 ```
 
 ## Configuration
@@ -68,6 +83,7 @@ Config is driven by environment variables and an optional JSON file.
 
 ## API
 - `POST /api/print` `{ "text": "..." }`
+- `POST /api/jobs/:id/reprint`
 - `GET /api/status`
 - `GET /api/jobs?page=1&pageSize=20`
 - `GET /healthz`
