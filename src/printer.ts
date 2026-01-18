@@ -2,9 +2,9 @@ import fs from 'node:fs/promises';
 import net from 'node:net';
 import escpos from 'escpos';
 import escposUsb from 'escpos-usb';
-import type { Logger } from 'pino';
 import { AppConfig, CutMode } from './config';
 import { buildEscPosPayload } from './escpos';
+import type { AppLogger } from './logger';
 import { sleep, withTimeout } from './utils';
 
 (escpos as any).USB = escposUsb;
@@ -25,14 +25,14 @@ export interface PrinterClient {
 
 const DEFAULT_RETRIES = 2;
 
-export function createPrinter(config: AppConfig, logger: Logger): PrinterClient {
+export function createPrinter(config: AppConfig, logger: AppLogger): PrinterClient {
   if (config.printerMode === 'usb') {
     return createUsbPrinter(config, logger);
   }
   return createEthernetPrinter(config, logger);
 }
 
-function createUsbPrinter(config: AppConfig, logger: Logger): PrinterClient {
+function createUsbPrinter(config: AppConfig, logger: AppLogger): PrinterClient {
   const vid = config.usbVendorId as number;
   const pid = config.usbProductId as number;
   const devicePath = config.usbDevicePath;
@@ -155,7 +155,7 @@ async function probeUsb(vendorId: number, productId: number, timeoutMs: number):
   );
 }
 
-function createEthernetPrinter(config: AppConfig, logger: Logger): PrinterClient {
+function createEthernetPrinter(config: AppConfig, logger: AppLogger): PrinterClient {
   const host = config.printerHost as string;
   const port = config.printerPort;
   const totalFeedLines = config.feedLines + config.cutFeedLines;
@@ -190,7 +190,7 @@ function createEthernetPrinter(config: AppConfig, logger: Logger): PrinterClient
   };
 }
 
-async function retryNetwork(action: () => Promise<void>, logger: Logger): Promise<void> {
+async function retryNetwork(action: () => Promise<void>, logger: AppLogger): Promise<void> {
   for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt += 1) {
     try {
       await action();

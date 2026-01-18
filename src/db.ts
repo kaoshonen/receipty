@@ -22,9 +22,8 @@ function runMigrations(db: Database.Database): void {
   }
 
   db.exec('CREATE TABLE IF NOT EXISTS migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
-  const applied = new Set<string>(
-    db.prepare('SELECT id FROM migrations').all().map((row: { id: string }) => row.id)
-  );
+  const appliedRows = db.prepare('SELECT id FROM migrations').all() as Array<{ id: string }>;
+  const applied = new Set<string>(appliedRows.map((row) => row.id));
 
   const files = fs.readdirSync(migrationsDir).filter((file) => file.endsWith('.sql')).sort();
   for (const file of files) {

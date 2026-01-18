@@ -1,12 +1,12 @@
-import type { Logger } from 'pino';
 import type { PrinterClient } from './printer';
 import type { JobRepository, JobRow } from './jobs';
+import type { AppLogger } from './logger';
 
 export class JobQueue {
   private processing = false;
   private pendingKick = false;
 
-  constructor(private repo: JobRepository, private printer: PrinterClient, private logger: Logger) {}
+  constructor(private repo: JobRepository, private printer: PrinterClient, private logger: AppLogger) {}
 
   start(): void {
     this.kick();
