@@ -2,7 +2,8 @@ import { CutMode } from './config';
 
 export function buildEscPosPayload(text: string, feedLines: number, cutMode: CutMode): Buffer {
   const chunks: Buffer[] = [];
-  chunks.push(Buffer.from(text, 'ascii'));
+  const normalizedText = text.endsWith('\n') ? text : `${text}\n`;
+  chunks.push(Buffer.from(normalizedText, 'ascii'));
   if (feedLines > 0) {
     chunks.push(Buffer.alloc(feedLines, 0x0a));
   }

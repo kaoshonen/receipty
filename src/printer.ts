@@ -36,18 +36,18 @@ function createUsbPrinter(config: AppConfig, logger: Logger): PrinterClient {
   const vid = config.usbVendorId as number;
   const pid = config.usbProductId as number;
   const devicePath = config.usbDevicePath;
-  const feedLines = config.feedLines;
+  const totalFeedLines = config.feedLines + config.cutFeedLines;
   const cutMode = config.cutMode;
 
   return {
     print: async (text) => {
-      const payload = buildEscPosPayload(text, feedLines, cutMode);
+      const payload = buildEscPosPayload(text, totalFeedLines, cutMode);
       if (devicePath) {
         await writeToDevicePath(devicePath, payload, config.writeTimeoutMs);
         return { bytes: payload.length };
       }
 
-      await writeUsbViaEscpos(vid, pid, payload, text, feedLines, cutMode);
+      await writeUsbViaEscpos(vid, pid, payload, text, totalFeedLines, cutMode);
       return { bytes: payload.length };
     },
     status: async () => {
@@ -158,14 +158,14 @@ async function probeUsb(vendorId: number, productId: number, timeoutMs: number):
 function createEthernetPrinter(config: AppConfig, logger: Logger): PrinterClient {
   const host = config.printerHost as string;
   const port = config.printerPort;
-  const feedLines = config.feedLines;
+  const totalFeedLines = config.feedLines + config.cutFeedLines;
   const cutMode = config.cutMode;
   const connectTimeout = config.connectTimeoutMs;
   const writeTimeout = config.writeTimeoutMs;
 
   return {
     print: async (text) => {
-      const payload = buildEscPosPayload(text, feedLines, cutMode);
+      const payload = buildEscPosPayload(text, totalFeedLines, cutMode);
       await retryNetwork(async () => {
         await writeEthernetPayload(host, port, payload, connectTimeout, writeTimeout);
       }, logger);

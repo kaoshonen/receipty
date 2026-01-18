@@ -19,6 +19,7 @@ describe('sanitizeText', () => {
 describe('buildEscPosPayload', () => {
   it('adds feed lines and cut command', () => {
     const payload = buildEscPosPayload('Hi', 2, 'partial');
+    expect(payload.slice(0, 3)).toEqual(Buffer.from('Hi\n', 'ascii'));
     expect(payload.includes(0x0a)).toBe(true);
     expect(payload.slice(-3)).toEqual(Buffer.from([0x1d, 0x56, 0x01]));
   });

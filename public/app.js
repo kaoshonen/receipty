@@ -98,7 +98,7 @@
         <span>Job #${escapeHtml(job.id)}</span>
         <span>${escapeHtml(job.createdAt)}</span>
       </div>
-      <p class="result-preview">${escapeHtml(job.preview || '')}</p>
+      <p class="result-preview">${escapeHtml(job.text || job.preview || '')}</p>
     `;
   };
 

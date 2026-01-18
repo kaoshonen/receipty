@@ -30,6 +30,20 @@ body {
   max-width: 960px;
   margin: 0 auto;
   padding: 32px 20px 48px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+}
+
+.app-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--muted);
 }
 
 .top-bar {
@@ -39,6 +53,34 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 28px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand-link {
+  display: inline-flex;
+  border-radius: 32px;
+}
+
+.brand-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.brand-mark {
+  width: 288px;
+  height: 288px;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 28px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--stroke);
+  box-shadow: 0 12px 20px rgba(36, 26, 14, 0.18);
 }
 
 .eyebrow {
@@ -77,6 +119,28 @@ h2 {
 
 .nav-link:hover {
   border-color: var(--accent);
+}
+
+.action-button {
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.action-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.action-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .card {
@@ -245,6 +309,8 @@ input {
   border-radius: 12px;
   border: 1px solid var(--stroke);
   white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
 }
 
 .result-empty {
@@ -329,6 +395,11 @@ pre {
   margin: 10px 0 0;
 }
 
+.preview pre {
+  max-height: none;
+  overflow: visible;
+}
+
 @keyframes rise {
   from {
     opacity: 0;
@@ -344,6 +415,11 @@ pre {
   .top-bar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .brand-mark {
+    width: 200px;
+    height: 200px;
   }
 
   h1 {

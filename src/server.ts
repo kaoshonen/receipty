@@ -27,6 +27,7 @@ const repo = createJobRepository(db);
 const printer = createPrinter(config, fastify.log);
 const queue = new JobQueue(repo, printer, fastify.log);
 queue.start();
+const totalFeedLines = config.feedLines + config.cutFeedLines;
 
 fastify.register(fastifyStatic, {
   root: path.join(process.cwd(), 'public'),
@@ -110,16 +111,38 @@ fastify.post('/api/print', { config: { rateLimit: true } }, async (request, repl
     return;
   }
 
-  const payload = buildEscPosPayload(sanitized, config.feedLines, config.cutMode);
-  const jobId = repo.insert({
-    mode: config.printerMode,
-    bytes: payload.length,
-    preview: previewText(sanitized),
-    textHash: hashText(sanitized),
-    text: sanitized
-  });
+  const jobId = queueSanitizedJob(sanitized);
 
   fastify.log.info({ jobId }, 'job queued');
+  queue.kick();
+
+  reply.send({ jobId: String(jobId), status: 'queued' });
+});
+
+fastify.post('/api/jobs/:id/reprint', { config: { rateLimit: true } }, async (request, reply) => {
+  const id = Number((request.params as { id: string }).id);
+  if (!Number.isFinite(id)) {
+    reply.code(400).send({ error: 'Invalid job id' });
+    return;
+  }
+  const job = repo.getById(id);
+  if (!job) {
+    reply.code(404).send({ error: 'Job not found' });
+    return;
+  }
+
+  const sanitized = sanitizeText(job.text);
+  if (sanitized.length === 0) {
+    reply.code(400).send({ error: 'text must include printable characters' });
+    return;
+  }
+  if (sanitized.length > config.maxChars) {
+    reply.code(400).send({ error: `text exceeds ${config.maxChars} characters` });
+    return;
+  }
+
+  const jobId = queueSanitizedJob(sanitized);
+  fastify.log.info({ jobId, sourceJobId: id }, 'job reprint queued');
   queue.kick();
 
   reply.send({ jobId: String(jobId), status: 'queued' });
@@ -143,6 +166,7 @@ fastify.get('/api/jobs', { config: { rateLimit: true } }, async (request) => {
       status: job.status,
       bytes: job.bytes,
       preview: job.preview,
+      text: job.text,
       textHash: job.text_hash,
       error: job.error,
       errorSummary: job.error ? job.error.split('\n')[0] : null
@@ -189,6 +213,17 @@ function isApiKeyValid(provided: string, expected: string): boolean {
     return false;
   }
   return crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function queueSanitizedJob(sanitized: string): number {
+  const payload = buildEscPosPayload(sanitized, totalFeedLines, config.cutMode);
+  return repo.insert({
+    mode: config.printerMode,
+    bytes: payload.length,
+    preview: previewText(sanitized),
+    textHash: hashText(sanitized),
+    text: sanitized
+  });
 }
 
 async function getPrinterStatus(): Promise<{ connected: boolean; details: Record<string, unknown> }> {

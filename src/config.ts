@@ -12,6 +12,7 @@ export interface AppConfig {
   rateLimitPerMinute: number;
   maxChars: number;
   feedLines: number;
+  cutFeedLines: number;
   cutMode: CutMode;
   connectTimeoutMs: number;
   writeTimeoutMs: number;
@@ -128,7 +129,8 @@ export function loadConfig(): { config: AppConfig; redacted: Record<string, unkn
   const apiKey = get('API_KEY');
   const rateLimitPerMinute = parsePositiveInt(get('RATE_LIMIT_PER_MINUTE'), 'RATE_LIMIT_PER_MINUTE', 60);
   const maxChars = parsePositiveInt(get('MAX_CHARS'), 'MAX_CHARS', 1000);
-  const feedLines = parseNonNegativeInt(get('FEED_LINES'), 'FEED_LINES', 3);
+  const feedLines = parseNonNegativeInt(get('FEED_LINES'), 'FEED_LINES', 6);
+  const cutFeedLines = parseNonNegativeInt(get('CUT_FEED_LINES'), 'CUT_FEED_LINES', 3);
   const cutModeRaw = get('CUT_MODE') ?? 'partial';
   if (cutModeRaw !== 'none' && cutModeRaw !== 'partial' && cutModeRaw !== 'full') {
     throw new Error('CUT_MODE must be none, partial, or full');
@@ -172,6 +174,7 @@ export function loadConfig(): { config: AppConfig; redacted: Record<string, unkn
     rateLimitPerMinute,
     maxChars,
     feedLines,
+    cutFeedLines,
     cutMode: cutModeRaw,
     connectTimeoutMs,
     writeTimeoutMs,
@@ -193,6 +196,7 @@ export function loadConfig(): { config: AppConfig; redacted: Record<string, unkn
     RATE_LIMIT_PER_MINUTE: config.rateLimitPerMinute,
     MAX_CHARS: config.maxChars,
     FEED_LINES: config.feedLines,
+    CUT_FEED_LINES: config.cutFeedLines,
     CUT_MODE: config.cutMode,
     CONNECT_TIMEOUT_MS: config.connectTimeoutMs,
     WRITE_TIMEOUT_MS: config.writeTimeoutMs,

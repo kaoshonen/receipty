@@ -9,22 +9,34 @@ function renderLayout(title: string, body: string, extraScripts: string[] = []):
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)}</title>
+  <link rel="icon" type="image/png" href="/static/receipty-logo.png" />
+  <link rel="apple-touch-icon" href="/static/receipty-logo.png" />
   <link rel="stylesheet" href="/static/styles.css" />
   ${scripts}
 </head>
 <body>
   <div class="page">
     <header class="top-bar">
-      <div>
-        <p class="eyebrow">Receipt Printer Control</p>
-        <h1>${escapeHtml(title)}</h1>
+      <div class="brand">
+        <a class="brand-link" href="/" aria-label="Receipty home">
+          <img class="brand-mark" src="/static/receipty-logo.png" alt="Receipty logo" />
+        </a>
+        <div>
+          <p class="eyebrow">Receipt Printer Control</p>
+          <h1>${escapeHtml(title)}</h1>
+        </div>
       </div>
       <nav class="nav">
         <a href="/" class="nav-link">Print</a>
         <a href="/activity" class="nav-link">Activity</a>
       </nav>
     </header>
-    ${body}
+    <main class="content">
+      ${body}
+    </main>
+    <footer class="app-footer">
+      <a class="text-link" href="https://github.com/kaoshonen/receipty" target="_blank" rel="noreferrer">View on GitHub</a>
+    </footer>
   </div>
 </body>
 </html>`;
@@ -41,7 +53,7 @@ export function renderHome(options: {
         <span>Job #${options.lastJob.id}</span>
         <span>${escapeHtml(options.lastJob.created_at)}</span>
       </div>
-      <p class="result-preview">${escapeHtml(options.lastJob.preview || '')}</p>`
+      <p class="result-preview">${escapeHtml(options.lastJob.text || options.lastJob.preview || '')}</p>`
     : '<p class="result-empty">No jobs yet. Your first print will appear here.</p>';
 
   const apiKeyBlock = options.requiresApiKey
@@ -98,6 +110,7 @@ export function renderActivity(data: JobListResult): string {
         <td><span class="chip ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span></td>
         <td class="error">${errorSummary}</td>
         <td><a class="text-link" href="/jobs/${job.id}">Details</a></td>
+        <td><button class="action-button" data-job-id="${job.id}" aria-label="Reprint job #${job.id}">Reprint</button></td>
       </tr>`;
     })
     .join('');
@@ -108,8 +121,9 @@ export function renderActivity(data: JobListResult): string {
 
   const body = `
     <section class="card">
+      <div id="activity-feedback" class="feedback hidden"></div>
       <div class="table-wrap">
-        <table>
+        <table id="activity-table">
           <thead>
             <tr>
               <th>Time</th>
@@ -117,11 +131,12 @@ export function renderActivity(data: JobListResult): string {
               <th>Bytes</th>
               <th>Result</th>
               <th>Error summary</th>
-              <th></th>
+              <th>Details</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${rows || '<tr><td colspan="6">No jobs yet.</td></tr>'}
+            ${rows || '<tr><td colspan="7">No jobs yet.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -133,7 +148,7 @@ export function renderActivity(data: JobListResult): string {
     </section>
   `;
 
-  return renderLayout('Activity', body);
+  return renderLayout('Activity', body, ['/static/activity.js']);
 }
 
 export function renderJobDetail(job: JobRow): string {
@@ -166,7 +181,7 @@ export function renderJobDetail(job: JobRow): string {
       </div>
       <div class="preview">
         <span class="field-label">Preview</span>
-        <pre>${escapeHtml(job.preview)}</pre>
+        <pre>${escapeHtml(job.text || job.preview)}</pre>
       </div>
     </section>
     ${errorBlock}

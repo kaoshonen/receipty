@@ -41,7 +41,8 @@ Config is driven by environment variables and an optional JSON file.
 | `API_KEY` | Conditional | `changeme` | Required when exposed |
 | `RATE_LIMIT_PER_MINUTE` | No | `60` | Per IP |
 | `MAX_CHARS` | No | `1000` | Input limit |
-| `FEED_LINES` | No | `3` | Line feeds after text |
+| `FEED_LINES` | No | `6` | Line feeds after text |
+| `CUT_FEED_LINES` | No | `3` | Extra line feeds before cutting |
 | `CUT_MODE` | No | `partial` | `none` `partial` `full` |
 | `CONNECT_TIMEOUT_MS` | No | `2000` | Ethernet |
 | `WRITE_TIMEOUT_MS` | No | `2000` | Ethernet/USB write |
