@@ -1,5 +1,9 @@
 # Receipt Printer Control Web App
 
+<p align="center">
+  <img src="public/receipty-logo.png" alt="Receipty logo" width="240" />
+</p>
+
 A lightweight web UI and API to send plain-text jobs to an Epson TM-T88IV receipt printer over USB or Ethernet. Includes job logging, status checks, and Docker-first setup.
 
 ## Features
