@@ -12,6 +12,7 @@ import { createPrinter } from './printer';
 import { buildEscPosPayload } from './escpos';
 import { hashText, previewText, sanitizeText } from './utils';
 import { renderActivity, renderHome, renderJobDetail } from './ui';
+import { startRtspHlsStream } from './stream';
 
 const { config, redacted } = loadConfig();
 
@@ -28,11 +29,29 @@ const printer = createPrinter(config, fastify.log);
 const queue = new JobQueue(repo, printer, fastify.log);
 queue.start();
 const totalFeedLines = config.feedLines + config.cutFeedLines;
+const dataDir = path.dirname(config.dbPath);
+const streamUrl = config.rtspStreamUrl;
+const streamEnabled = Boolean(streamUrl);
+const streamHandle = streamUrl
+  ? startRtspHlsStream({ url: streamUrl, dataDir, logger: fastify.log })
+  : null;
 
 fastify.register(fastifyStatic, {
   root: path.join(process.cwd(), 'public'),
   prefix: '/static/'
 });
+
+if (streamHandle) {
+  fastify.register(fastifyStatic, {
+    root: streamHandle.dir,
+    prefix: '/stream/',
+    decorateReply: false,
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Pragma', 'no-cache');
+    }
+  });
+}
 
 fastify.register(rateLimit, {
   global: false,
@@ -68,7 +87,13 @@ fastify.get('/readyz', async (_request, reply) => {
 fastify.get('/', async (_request, reply) => {
   const lastJob = repo.latest();
   reply.type('text/html');
-  return renderHome({ maxChars: config.maxChars, lastJob, requiresApiKey: config.requireApiKey });
+  return renderHome({
+    maxChars: config.maxChars,
+    lastJob,
+    requiresApiKey: config.requireApiKey,
+    streamEnabled,
+    streamReady: Boolean(streamHandle)
+  });
 });
 
 fastify.get('/activity', async (request, reply) => {
@@ -184,6 +209,9 @@ fastify.listen({ host: config.appHost, port: config.appPort }, (err) => {
   }
   fastify.log.info(`listening on http://${config.appHost}:${config.appPort}`);
 });
+
+process.on('SIGTERM', () => streamHandle?.stop());
+process.on('SIGINT', () => streamHandle?.stop());
 
 function parsePagination(request: FastifyRequest): { page: number; pageSize: number } {
   const query = request.query as { page?: string; pageSize?: string };

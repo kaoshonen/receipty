@@ -1,8 +1,11 @@
 import type { JobRow, JobListResult } from './jobs';
 import { escapeHtml } from './utils';
 
+const HOME_TITLE = 'Enter text in the field below and send it to the printer';
+
 function renderLayout(title: string, body: string, extraScripts: string[] = []): string {
   const scripts = extraScripts.map((src) => `<script src="${src}" defer></script>`).join('');
+  const titleClass = title === HOME_TITLE ? 'page-title page-title--home' : 'page-title';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -23,7 +26,7 @@ function renderLayout(title: string, body: string, extraScripts: string[] = []):
         </a>
         <div>
           <p class="eyebrow">Receipt Printer Control</p>
-          <h1>${escapeHtml(title)}</h1>
+          <h1 class="${titleClass}">${escapeHtml(title)}</h1>
         </div>
       </div>
       <nav class="nav">
@@ -46,6 +49,8 @@ export function renderHome(options: {
   maxChars: number;
   lastJob?: JobRow;
   requiresApiKey: boolean;
+  streamEnabled: boolean;
+  streamReady: boolean;
 }): string {
   const lastJobMarkup = options.lastJob
     ? `<div class="result-meta">
@@ -62,6 +67,28 @@ export function renderHome(options: {
         <input id="api-key" type="password" placeholder="Enter API key" autocomplete="off" />
         <small class="hint">Required because the app is bound to a non-localhost address.</small>
       </label>`
+    : '';
+
+  const streamCard = options.streamEnabled
+    ? `
+    <section class="card video-card">
+      <div class="card-header">
+        <h2>Live Stream</h2>
+      </div>
+      <div class="video-frame">
+        ${
+          options.streamReady
+            ? '<video id="rtsp-video" class="video-player" data-src="/stream/index.m3u8" autoplay muted playsinline></video>'
+            : '<div class="video-placeholder">Stream unavailable</div>'
+        }
+      </div>
+      <p id="stream-status" class="hint${options.streamReady ? '' : ' error'}">${
+        options.streamReady
+          ? 'Loading live view...'
+          : 'Stream unavailable. Install ffmpeg and verify RTSP_STREAM_URL.'
+      }</p>
+    </section>
+  `
     : '';
 
   const body = `
@@ -85,6 +112,8 @@ export function renderHome(options: {
       <div id="print-feedback" class="feedback hidden"></div>
     </section>
 
+    ${streamCard}
+
     <section class="card">
       <div class="card-header">
         <h2>Last Job</h2>
@@ -96,7 +125,11 @@ export function renderHome(options: {
     </section>
   `;
 
-  return renderLayout('Print', body, ['/static/app.js']);
+  const scripts = ['/static/app.js'];
+  if (options.streamReady) {
+    scripts.push('/static/stream.js');
+  }
+  return renderLayout(HOME_TITLE, body, scripts);
 }
 
 export function renderActivity(data: JobListResult): string {

@@ -22,6 +22,7 @@ export interface AppConfig {
   printerHost?: string;
   printerPort: number;
   dbPath: string;
+  rtspStreamUrl?: string;
   configPath?: string;
   requireApiKey: boolean;
 }
@@ -137,6 +138,7 @@ export function loadConfig(): { config: AppConfig; redacted: Record<string, unkn
   }
   const connectTimeoutMs = parsePositiveInt(get('CONNECT_TIMEOUT_MS'), 'CONNECT_TIMEOUT_MS', 2000);
   const writeTimeoutMs = parsePositiveInt(get('WRITE_TIMEOUT_MS'), 'WRITE_TIMEOUT_MS', 2000);
+  const rtspStreamUrl = get('RTSP_STREAM_URL');
 
   let usbVendorId: number | undefined;
   let usbProductId: number | undefined;
@@ -184,6 +186,7 @@ export function loadConfig(): { config: AppConfig; redacted: Record<string, unkn
     printerHost,
     printerPort,
     dbPath,
+    rtspStreamUrl,
     configPath,
     requireApiKey
   };
@@ -206,6 +209,7 @@ export function loadConfig(): { config: AppConfig; redacted: Record<string, unkn
     PRINTER_HOST: config.printerHost,
     PRINTER_PORT: config.printerPort,
     DB_PATH: config.dbPath,
+    RTSP_STREAM_URL: config.rtspStreamUrl ? 'redacted' : undefined,
     CONFIG_PATH: config.configPath
   };
 

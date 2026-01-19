@@ -18,7 +18,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends libusb-1.0-0 curl \
+  && apt-get install -y --no-install-recommends libusb-1.0-0 curl ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./

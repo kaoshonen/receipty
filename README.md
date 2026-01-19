@@ -51,6 +51,9 @@ Config is driven by environment variables and an optional JSON file.
 - Optional file: set `CONFIG_PATH=/config/receipty.json` and mount it into the container.
 - Environment variables override values from the file.
 
+### Live stream (RTSP)
+Set `RTSP_STREAM_URL` to show a small live view on the home page. The server uses `ffmpeg` to convert RTSP to HLS and serves it at `/stream/index.m3u8`. Safari plays HLS natively; other browsers load `hls.js` from a CDN.
+
 ### Environment variables
 | Name | Required | Example | Notes |
 |---|---:|---|---|
@@ -65,6 +68,7 @@ Config is driven by environment variables and an optional JSON file.
 | `CUT_MODE` | No | `partial` | `none` `partial` `full` |
 | `CONNECT_TIMEOUT_MS` | No | `2000` | Ethernet |
 | `WRITE_TIMEOUT_MS` | No | `2000` | Ethernet/USB write |
+| `RTSP_STREAM_URL` | No | `rtsp://user:pass@camera/stream` | Optional live stream on the home page |
 | `DB_PATH` | No | `./data/receipty.sqlite` | SQLite file path |
 | `CONFIG_PATH` | No | `/config/receipty.json` | Optional JSON config file |
 
