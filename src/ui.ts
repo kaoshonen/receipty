@@ -35,7 +35,11 @@ function renderLayout(title: string, body: string, extraScripts: string[] = []):
       ${body}
     </main>
     <footer class="app-footer">
-      <a class="text-link" href="https://github.com/kaoshonen/receipty" target="_blank" rel="noreferrer">View on GitHub</a>
+      <div class="footer-links">
+        <a class="text-link" href="https://github.com/kaoshonen/receipty" target="_blank" rel="noreferrer">View on GitHub</a>
+        <span class="footer-separator" aria-hidden="true">•</span>
+        <a class="text-link" href="https://hub.docker.com/r/kaoshonen/receipty" target="_blank" rel="noreferrer">View on Docker Hub</a>
+      </div>
     </footer>
   </div>
 </body>
