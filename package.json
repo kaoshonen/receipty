@@ -6,6 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx src/server.ts",
+    "dev:clean": "bash scripts/dev-clean.sh",
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "vitest run",
