@@ -29,6 +29,7 @@ function renderLayout(title: string, body: string, extraScripts: string[] = []):
       <nav class="nav">
         <a href="/" class="nav-link">Print</a>
         <a href="/activity" class="nav-link">Activity</a>
+        <a href="/control" class="nav-link">Controls</a>
       </nav>
     </header>
     <main class="content">
@@ -100,7 +101,7 @@ export function renderHome(options: {
     </section>
   `;
 
-  return renderLayout('Print', body, ['/static/app.js']);
+  return renderLayout('Send a message to the Printer 🖨️', body, ['/static/app.js']);
 }
 
 export function renderActivity(data: JobListResult): string {
@@ -153,6 +154,39 @@ export function renderActivity(data: JobListResult): string {
   `;
 
   return renderLayout('Activity', body, ['/static/activity.js']);
+}
+
+export function renderControl(options: { requiresApiKey: boolean }): string {
+  const apiKeyBlock = options.requiresApiKey
+    ? `<label class="field">
+        <span class="field-label">API key</span>
+        <input id="api-key" type="password" placeholder="Enter API key" autocomplete="off" />
+        <small class="hint">Required because the app is bound to a non-localhost address.</small>
+      </label>`
+    : '';
+
+  const body = `
+    <section class="card">
+      <div class="card-header">
+        <h2>Printer Controls</h2>
+        <span class="badge">Confirmed by printer response</span>
+      </div>
+      <p class="helper-text">
+        View status without printing, or print the status report. Commands require a response from the printer to confirm execution. USB connections cannot confirm.
+      </p>
+      <div class="control-actions">
+        <button class="primary" data-command="feed">Feed</button>
+        <button class="primary" data-command="cut">Cut</button>
+        <button class="primary" data-command="status">View Status Report</button>
+        <button class="primary" data-command="print-status">Print Status Report</button>
+      </div>
+      ${apiKeyBlock}
+      <div id="control-feedback" class="feedback hidden"></div>
+      <div id="control-report" class="control-report hidden"></div>
+    </section>
+  `;
+
+  return renderLayout('Controls', body, ['/static/control.js']);
 }
 
 export function renderJobDetail(job: JobRow): string {

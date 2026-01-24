@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import Fastify from 'fastify';
@@ -10,8 +11,9 @@ import { createJobRepository } from './jobs';
 import { JobQueue } from './queue';
 import { createPrinter } from './printer';
 import { buildEscPosPayload } from './escpos';
-import { hashText, previewText, sanitizeText } from './utils';
-import { renderActivity, renderHome, renderJobDetail } from './ui';
+import { formatIso, hashText, previewText, sanitizeText } from './utils';
+import type { StatusReport } from './printer-status';
+import { renderActivity, renderControl, renderHome, renderJobDetail } from './ui';
 
 const { config, redacted } = loadConfig();
 
@@ -76,6 +78,11 @@ fastify.get('/activity', async (request, reply) => {
   const data = repo.list(page, pageSize);
   reply.type('text/html');
   return renderActivity(data);
+});
+
+fastify.get('/control', async (_request, reply) => {
+  reply.type('text/html');
+  return renderControl({ requiresApiKey: config.requireApiKey });
 });
 
 fastify.get('/jobs/:id', async (request, reply) => {
@@ -177,6 +184,56 @@ fastify.get('/api/jobs', { config: { rateLimit: true } }, async (request) => {
   };
 });
 
+fastify.post('/api/control/feed', { config: { rateLimit: true } }, async (_request, reply) => {
+  try {
+    return await printer.control('feed');
+  } catch (error) {
+    reply.code(502);
+    return { confirmed: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+fastify.post('/api/control/cut', { config: { rateLimit: true } }, async (_request, reply) => {
+  try {
+    return await printer.control('cut');
+  } catch (error) {
+    reply.code(502);
+    return { confirmed: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+fastify.post('/api/control/status', { config: { rateLimit: true } }, async (_request, reply) => {
+  try {
+    return await printer.control('status');
+  } catch (error) {
+    reply.code(502);
+    return { confirmed: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+fastify.post('/api/control/status/print', { config: { rateLimit: true } }, async (_request, reply) => {
+  try {
+    const result = await printer.control('status');
+    if (result.confirmed && result.status) {
+      const report = formatStatusReport(result.status);
+      const sanitized = sanitizeText(report);
+      if (sanitized.length === 0) {
+        return { ...result, error: 'Status report was empty and could not be printed.' };
+      }
+      if (sanitized.length > config.maxChars) {
+        return { ...result, error: `Status report exceeds ${config.maxChars} characters and could not be printed.` };
+      }
+      const jobId = queueSanitizedJob(sanitized);
+      queue.kick();
+      return { ...result, jobId: String(jobId) };
+    }
+    return result;
+  } catch (error) {
+    reply.code(502);
+    return { confirmed: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
 fastify.listen({ host: config.appHost, port: config.appPort }, (err) => {
   if (err) {
     fastify.log.error(err, 'failed to start server');
@@ -224,6 +281,30 @@ function queueSanitizedJob(sanitized: string): number {
     textHash: hashText(sanitized),
     text: sanitized
   });
+}
+
+function formatStatusReport(status: StatusReport): string {
+  const lines: string[] = [];
+  lines.push('STATUS REPORT');
+  lines.push(`Generated: ${formatIso()}`);
+  lines.push(`Overall: ${status.ok ? 'OK' : 'ATTENTION'}`);
+  lines.push('');
+
+  for (const section of status.statuses) {
+    lines.push(section.className);
+    const entries = section.statuses.filter((entry) => entry.label !== 'Fixed');
+    if (entries.length === 0) {
+      lines.push('  [OK] All clear.');
+    } else {
+      for (const entry of entries) {
+        const level = entry.status === 'warning' ? 'WARN' : entry.status.toUpperCase();
+        lines.push(`  [${level}] ${entry.label}`);
+      }
+    }
+    lines.push('');
+  }
+
+  return `${lines.join('\n').trim()}\n`;
 }
 
 async function getPrinterStatus(): Promise<{ connected: boolean; details: Record<string, unknown> }> {

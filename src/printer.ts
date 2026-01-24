@@ -5,6 +5,7 @@ import escposUsb from 'escpos-usb';
 import { AppConfig, CutMode } from './config';
 import { buildEscPosPayload } from './escpos';
 import type { AppLogger } from './logger';
+import { parseStatusBytes, StatusReport } from './printer-status';
 import { sleep, withTimeout } from './utils';
 
 (escpos as any).USB = escposUsb;
@@ -18,18 +19,49 @@ export interface PrinterStatus {
   details: Record<string, unknown>;
 }
 
+export type ControlCommand = 'feed' | 'cut' | 'status';
+
+export interface ControlResult {
+  confirmed: boolean;
+  status?: StatusReport;
+  error?: string;
+}
+
 export interface PrinterClient {
   print: (text: string) => Promise<PrintResult>;
   status: () => Promise<PrinterStatus>;
+  control: (command: ControlCommand) => Promise<ControlResult>;
 }
 
 const DEFAULT_RETRIES = 2;
+const STATUS_BYTES = 4;
+const STATUS_REQUEST = Buffer.from([
+  0x10, 0x04, 0x01,
+  0x10, 0x04, 0x04,
+  0x10, 0x04, 0x02,
+  0x10, 0x04, 0x03
+]);
 
 export function createPrinter(config: AppConfig, logger: AppLogger): PrinterClient {
-  if (config.printerMode === 'usb') {
-    return createUsbPrinter(config, logger);
-  }
-  return createEthernetPrinter(config, logger);
+  const runExclusive = createOperationQueue();
+  const baseClient = config.printerMode === 'usb' ? createUsbPrinter(config, logger) : createEthernetPrinter(config, logger);
+  return {
+    print: (text) => runExclusive(() => baseClient.print(text)),
+    status: baseClient.status,
+    control: (command) => runExclusive(() => baseClient.control(command))
+  };
+}
+
+function createOperationQueue() {
+  let tail = Promise.resolve();
+  return async function runExclusive<T>(action: () => Promise<T>): Promise<T> {
+    const result = tail.then(action, action);
+    tail = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  };
 }
 
 function createUsbPrinter(config: AppConfig, logger: AppLogger): PrinterClient {
@@ -38,6 +70,10 @@ function createUsbPrinter(config: AppConfig, logger: AppLogger): PrinterClient {
   const devicePath = config.usbDevicePath;
   const totalFeedLines = config.feedLines + config.cutFeedLines;
   const cutMode = config.cutMode;
+  const controlUnsupported: ControlResult = {
+    confirmed: false,
+    error: 'Printer control confirmation is not available in USB mode; command not sent.'
+  };
 
   return {
     print: async (text) => {
@@ -81,7 +117,8 @@ function createUsbPrinter(config: AppConfig, logger: AppLogger): PrinterClient {
           }
         };
       }
-    }
+    },
+    control: async () => controlUnsupported
   };
 }
 
@@ -159,6 +196,8 @@ function createEthernetPrinter(config: AppConfig, logger: AppLogger): PrinterCli
   const host = config.printerHost as string;
   const port = config.printerPort;
   const totalFeedLines = config.feedLines + config.cutFeedLines;
+  const feedLines = Math.max(1, config.feedLines);
+  const cutFeedLines = config.cutFeedLines;
   const cutMode = config.cutMode;
   const connectTimeout = config.connectTimeoutMs;
   const writeTimeout = config.writeTimeoutMs;
@@ -166,9 +205,7 @@ function createEthernetPrinter(config: AppConfig, logger: AppLogger): PrinterCli
   return {
     print: async (text) => {
       const payload = buildEscPosPayload(text, totalFeedLines, cutMode);
-      await retryNetwork(async () => {
-        await writeEthernetPayload(host, port, payload, connectTimeout, writeTimeout);
-      }, logger);
+      await retryNetwork(() => writeEthernetPayload(host, port, payload, connectTimeout, writeTimeout), logger);
       return { bytes: payload.length };
     },
     status: async () => {
@@ -186,15 +223,38 @@ function createEthernetPrinter(config: AppConfig, logger: AppLogger): PrinterCli
           }
         };
       }
+    },
+    control: async (command) => {
+      if (command === 'cut' && cutMode === 'none') {
+        return { confirmed: false, error: 'Cutting is disabled because CUT_MODE is set to none.' };
+      }
+
+      const status = await retryNetwork(
+        () => executeEthernetControl(host, port, command, feedLines, cutFeedLines, cutMode, connectTimeout, writeTimeout),
+        logger
+      );
+
+      if (command === 'status') {
+        return { confirmed: true, status };
+      }
+
+      if (status.ok) {
+        return { confirmed: true, status };
+      }
+
+      return {
+        confirmed: false,
+        status,
+        error: 'Printer responded with an error while confirming the command.'
+      };
     }
   };
 }
 
-async function retryNetwork(action: () => Promise<void>, logger: AppLogger): Promise<void> {
+async function retryNetwork<T>(action: () => Promise<T>, logger: AppLogger): Promise<T> {
   for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt += 1) {
     try {
-      await action();
-      return;
+      return await action();
     } catch (error) {
       if (attempt >= DEFAULT_RETRIES) {
         throw error;
@@ -204,6 +264,132 @@ async function retryNetwork(action: () => Promise<void>, logger: AppLogger): Pro
       await sleep(backoff);
     }
   }
+  throw new Error('network retry failed');
+}
+
+async function executeEthernetControl(
+  host: string,
+  port: number,
+  command: ControlCommand,
+  feedLines: number,
+  cutFeedLines: number,
+  cutMode: CutMode,
+  connectTimeout: number,
+  writeTimeout: number
+): Promise<StatusReport> {
+  const socket = await connectSocket(host, port, connectTimeout);
+
+  try {
+    if (command === 'feed') {
+      await writeSocketPayload(socket, buildFeedPayload(feedLines), writeTimeout);
+    }
+    if (command === 'cut') {
+      await writeSocketPayload(socket, buildCutPayload(cutFeedLines, cutMode), writeTimeout);
+    }
+
+    await writeSocketPayload(socket, STATUS_REQUEST, writeTimeout);
+    const statusBytes = await readSocketBytes(socket, STATUS_BYTES, writeTimeout);
+    return parseStatusBytes(Array.from(statusBytes));
+  } finally {
+    socket.end();
+    socket.destroy();
+  }
+}
+
+function buildFeedPayload(feedLines: number): Buffer {
+  const lines = Math.max(1, feedLines);
+  return Buffer.alloc(lines, 0x0a);
+}
+
+function buildCutPayload(feedLines: number, cutMode: CutMode): Buffer {
+  const chunks: Buffer[] = [];
+  if (feedLines > 0) {
+    chunks.push(Buffer.alloc(feedLines, 0x0a));
+  }
+  if (cutMode === 'full') {
+    chunks.push(Buffer.from([0x1d, 0x56, 0x00]));
+  }
+  if (cutMode === 'partial') {
+    chunks.push(Buffer.from([0x1d, 0x56, 0x01]));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function connectSocket(host: string, port: number, timeoutMs: number): Promise<net.Socket> {
+  const socket = new net.Socket();
+  await withTimeout(
+    new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => {
+        socket.destroy();
+        reject(error);
+      };
+      socket.once('error', onError);
+      socket.connect(port, host, () => {
+        socket.off('error', onError);
+        resolve();
+      });
+    }),
+    timeoutMs,
+    'ethernet connect timeout'
+  );
+  return socket;
+}
+
+async function writeSocketPayload(socket: net.Socket, payload: Buffer, timeoutMs: number): Promise<void> {
+  if (payload.length === 0) {
+    return;
+  }
+  await withTimeout(
+    new Promise<void>((resolve, reject) => {
+      socket.write(payload, (error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    }),
+    timeoutMs,
+    'ethernet write timeout'
+  );
+}
+
+async function readSocketBytes(socket: net.Socket, length: number, timeoutMs: number): Promise<Buffer> {
+  return withTimeout(
+    new Promise<Buffer>((resolve, reject) => {
+      let buffer = Buffer.alloc(0);
+
+      const onData = (chunk: Buffer) => {
+        buffer = Buffer.concat([buffer, chunk]);
+        if (buffer.length >= length) {
+          cleanup();
+          resolve(buffer.subarray(0, length));
+        }
+      };
+
+      const onError = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+
+      const onClose = () => {
+        cleanup();
+        reject(new Error('socket closed before status response'));
+      };
+
+      const cleanup = () => {
+        socket.off('data', onData);
+        socket.off('error', onError);
+        socket.off('close', onClose);
+      };
+
+      socket.on('data', onData);
+      socket.once('error', onError);
+      socket.once('close', onClose);
+    }),
+    timeoutMs,
+    'ethernet status read timeout'
+  );
 }
 
 async function connectProbe(host: string, port: number, timeoutMs: number): Promise<void> {

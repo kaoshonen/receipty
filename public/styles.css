@@ -284,6 +284,95 @@ input {
   display: none;
 }
 
+.helper-text {
+  margin-top: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.control-report {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid var(--stroke);
+  font-size: 0.92rem;
+}
+
+.control-report.hidden {
+  display: none;
+}
+
+.status-summary {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.status-summary.ok {
+  color: var(--teal-dark);
+}
+
+.status-summary.warn {
+  color: var(--accent-dark);
+}
+
+.status-section {
+  margin-top: 12px;
+}
+
+.status-section h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.status-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  background: rgba(95, 92, 86, 0.12);
+  color: var(--muted);
+}
+
+.status-pill.warning {
+  background: rgba(209, 122, 34, 0.16);
+  color: var(--accent-dark);
+}
+
+.status-pill.error {
+  background: rgba(209, 122, 34, 0.2);
+  color: var(--accent-dark);
+}
+
+.status-pill.ok {
+  background: rgba(31, 110, 104, 0.16);
+  color: var(--teal-dark);
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
