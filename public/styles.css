@@ -46,6 +46,16 @@ body {
   color: var(--muted);
 }
 
+.footer-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.footer-separator {
+  color: var(--muted);
+}
+
 .top-bar {
   display: flex;
   flex-wrap: wrap;
