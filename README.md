@@ -11,8 +11,9 @@ A lightweight web UI and API to send plain-text jobs to an Epson TM-T88IV receip
 - Printer status checks and readiness endpoints
 - SQLite-backed job audit trail with error stacks
 - Reprint previous jobs from the Activity log
+- Printer control page (feed, cut, status report, status printout)
 - USB device path override and Ethernet RAW TCP
-- Docker Compose profiles for usb and ethernet
+- Docker Compose profiles for usb and ethernet (Docker Hub image)
 
 ## Quick Start (Local)
 ```bash
@@ -25,20 +26,18 @@ Create `.env` from the example below and run the server. By default it binds to 
 ## Docker Compose
 Profiles are required for usb/ethernet. If you omit `--profile`, Compose will report "no service selected".
 ```bash
-docker compose --profile ethernet up --build
+docker compose --profile ethernet pull
+docker compose --profile ethernet up -d
 ```
 
 For USB, ensure device mappings match your host:
 ```bash
-docker compose --profile usb up --build
+docker compose --profile usb pull
+docker compose --profile usb up -d
 ```
 
 ### Docker Hub (remote servers)
-Use the published image instead of `build: .`:
-```bash
-docker compose --profile ethernet pull
-docker compose --profile ethernet up -d
-```
+Compose uses the published image by default. If you want to build locally instead, swap `image:` for `build: .` in `docker-compose.yml`.
 
 If the container fails with `SQLITE_CANTOPEN`, ensure the data volume is writable:
 ```bash
@@ -84,6 +83,10 @@ Config is driven by environment variables and an optional JSON file.
 ## API
 - `POST /api/print` `{ "text": "..." }`
 - `POST /api/jobs/:id/reprint`
+- `POST /api/control/feed`
+- `POST /api/control/cut`
+- `POST /api/control/status` (view report in UI)
+- `POST /api/control/status/print` (print report)
 - `GET /api/status`
 - `GET /api/jobs?page=1&pageSize=20`
 - `GET /healthz`
@@ -102,3 +105,4 @@ npm start
 - USB printing uses `escpos-usb` by default and will fall back to writing the raw payload to `USB_DEVICE_PATH` when provided.
 - Ethernet printing uses raw TCP with timeouts and retry jitter.
 - If USB access fails, try mapping `/dev/bus/usb` first; only use `privileged: true` as a last resort.
+- Status report confirmation requires a printer response; USB connections cannot confirm control commands.
