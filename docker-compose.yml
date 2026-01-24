@@ -1,6 +1,6 @@
 services:
   receipty-ethernet:
-    build: .
+    image: kaoshonen/receipty:latest
     profiles: ["ethernet"]
     ports:
       - "3000:3000"
@@ -14,7 +14,7 @@ services:
       - receipty-data:/app/data
 
   receipty-usb:
-    build: .
+    image: kaoshonen/receipty:latest
     profiles: ["usb"]
     ports:
       - "3000:3000"
