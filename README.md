@@ -106,3 +106,6 @@ npm start
 - Ethernet printing uses raw TCP with timeouts and retry jitter.
 - If USB access fails, try mapping `/dev/bus/usb` first; only use `privileged: true` as a last resort.
 - Status report confirmation requires a printer response; USB connections cannot confirm control commands.
+
+## License
+MIT. See `LICENSE`.
