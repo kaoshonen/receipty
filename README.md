@@ -97,7 +97,7 @@ Config is driven by environment variables and an optional JSON file.
 - `GET /readyz`
 
 If `APP_HOST` is not localhost, include `X-API-Key` in API requests.
-Image uploads are limited to 2MB.
+Image uploads are limited to 5MB.
 
 ## Development
 ```bash

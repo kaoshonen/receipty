@@ -31,7 +31,7 @@ const printer = createPrinter(config, fastify.log);
 const queue = new JobQueue(repo, printer, fastify.log);
 queue.start();
 const totalFeedLines = config.feedLines + config.cutFeedLines;
-const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/bmp']);
 const IMAGE_BODY_LIMIT = Math.max(config.maxChars * 4, MAX_IMAGE_BYTES * 2 + 1024);
 

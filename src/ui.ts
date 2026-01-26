@@ -94,7 +94,7 @@ export function renderHome(options: {
         <div id="image-drop" class="drop-zone">
           <div class="drop-zone-content">
             <p>Drag & drop an image here, or click to browse.</p>
-            <span>PNG, JPEG, GIF, BMP · up to 2MB</span>
+            <span>PNG, JPEG, GIF, BMP · up to 5MB</span>
           </div>
         </div>
         <input id="image-input" type="file" accept="image/png,image/jpeg,image/gif,image/bmp" hidden />

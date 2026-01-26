@@ -20,7 +20,7 @@
   }
 
   const maxChars = Number.parseInt(textarea.dataset.max || '0', 10);
-  const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
   const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/bmp'];
   let selectedImage = null;
   let previewUrl = null;
@@ -110,7 +110,7 @@
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setFeedback('Image is too large. Max size is 2MB.', true);
+      setFeedback('Image is too large. Max size is 5MB.', true);
       return;
     }
     selectedImage = file;
