@@ -18,16 +18,6 @@
 
 ## Tasks
 
-- [ ] **3. 12-hour clock and more legible time stamps on print job activity**
-  - Update timestamp formatting to use 12-hour clock format (e.g., "Jan 26, 2026 3:45 PM" instead of ISO format).
-  - Make timestamps more readable and human-friendly across all job displays:
-    - Activity page table
-    - Job detail page
-    - Last job section on home page
-  - Keep ISO format for database storage; only format for display.
-  - Add a utility function to format timestamps for display (e.g., `formatDisplayTime` in `utils.ts`).
-  - Update `ui.ts` to use the new formatting function when rendering timestamps.
-
 - [ ] **4. Image support for printing**
   - Add drag-and-drop and file selection support for images on the print page.
   - Accept common image formats (PNG, JPEG, GIF, BMP).
@@ -59,6 +49,16 @@
 ---
 
 ## Complete
+
+- [x] **3. 12-hour clock and more legible time stamps on print job activity**
+  - Update timestamp formatting to use 12-hour clock format (e.g., "Jan 26, 2026 3:45 PM" instead of ISO format).
+  - Make timestamps more readable and human-friendly across all job displays:
+    - Activity page table
+    - Job detail page
+    - Last job section on home page
+  - Keep ISO format for database storage; only format for display.
+  - Add a utility function to format timestamps for display (e.g., `formatDisplayTime` in `utils.ts`).
+  - Update `ui.ts` to use the new formatting function when rendering timestamps.
 
 - [x] **1. Print control page**
   - Add a new page in the app for robust printer controls.
