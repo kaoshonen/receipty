@@ -16,7 +16,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@fastify/multipart": "^9.4.0",
+    "@fastify/multipart": "^7.7.3",
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/static": "^7.0.3",
     "better-sqlite3": "^11.5.0",
