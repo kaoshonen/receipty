@@ -44,7 +44,7 @@ export class JobQueue {
     this.logger.info({ jobId: job.id }, 'job started');
 
     try {
-      const result = await this.printer.print(job.text);
+      const result = await this.printer.print({ text: job.text, image: job.image_data });
       this.repo.updateStatus(job.id, 'succeeded');
       this.logger.info({ jobId: job.id, bytes: result.bytes }, 'job succeeded');
     } catch (error) {

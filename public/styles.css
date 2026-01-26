@@ -218,6 +218,81 @@ h2 {
   margin-bottom: 16px;
 }
 
+.drop-zone {
+  border: 2px dashed var(--stroke);
+  border-radius: 14px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(209, 122, 34, 0.08);
+}
+
+.drop-zone-content p {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.drop-zone-content span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.image-preview {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: white;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.image-preview.hidden {
+  display: none;
+}
+
+.image-preview img {
+  max-width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+}
+
+.image-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.print-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.checkbox input {
+  accent-color: var(--teal);
+}
+
 .field-label {
   font-size: 0.9rem;
   color: var(--muted);
@@ -232,6 +307,11 @@ textarea {
   border: 1px solid var(--stroke);
   background: white;
   font-size: 1rem;
+}
+
+textarea:disabled {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
 }
 
 input {
@@ -410,6 +490,16 @@ input {
   white-space: pre-wrap;
   max-height: 240px;
   overflow: auto;
+}
+
+.image-indicator {
+  margin: 8px 0 0;
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(27, 26, 23, 0.08);
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
 .result-empty {

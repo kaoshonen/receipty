@@ -24,6 +24,10 @@ export function hashText(text: string): string {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
 
+export function hashBuffer(buffer: Buffer): string {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
 export function previewText(text: string, maxLength = 120): string {
   if (text.length <= maxLength) {
     return text;

@@ -13,6 +13,9 @@ export interface JobRow {
   preview: string;
   text_hash: string;
   text: string;
+  image_data: Buffer | null;
+  image_hash: string | null;
+  image_mime: string | null;
   error: string | null;
 }
 
@@ -29,6 +32,9 @@ export interface JobInsert {
   preview: string;
   textHash: string;
   text: string;
+  imageData?: Buffer | null;
+  imageHash?: string | null;
+  imageMime?: string | null;
 }
 
 export interface JobRepository {
@@ -42,7 +48,7 @@ export interface JobRepository {
 
 export function createJobRepository(db: Database): JobRepository {
   const insertStmt = db.prepare(
-    'INSERT INTO jobs (created_at, updated_at, mode, status, bytes, preview, text_hash, text, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)'
+    'INSERT INTO jobs (created_at, updated_at, mode, status, bytes, preview, text_hash, text, image_data, image_hash, image_mime, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)'
   );
   const nextQueuedStmt = db.prepare(
     'SELECT * FROM jobs WHERE status = ? ORDER BY id ASC LIMIT 1'
@@ -66,7 +72,10 @@ export function createJobRepository(db: Database): JobRepository {
         job.bytes,
         job.preview,
         job.textHash,
-        job.text
+        job.text,
+        job.imageData ?? null,
+        job.imageHash ?? null,
+        job.imageMime ?? null
       );
       return Number(result.lastInsertRowid);
     },

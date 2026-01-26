@@ -6,12 +6,24 @@
   const statusBadge = document.getElementById('printer-status');
   const lastJob = document.getElementById('last-job');
   const apiKeyInput = document.getElementById('api-key');
+  const dropZone = document.getElementById('image-drop');
+  const imageInput = document.getElementById('image-input');
+  const imagePreview = document.getElementById('image-preview');
+  const imagePreviewImg = document.getElementById('image-preview-img');
+  const imagePreviewName = document.getElementById('image-preview-name');
+  const imageRemove = document.getElementById('image-remove');
+  const includeText = document.getElementById('include-text');
+  const includeImage = document.getElementById('include-image');
 
   if (!textarea || !counter || !printButton || !feedback || !statusBadge || !lastJob) {
     return;
   }
 
   const maxChars = Number.parseInt(textarea.dataset.max || '0', 10);
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+  const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/bmp'];
+  let selectedImage = null;
+  let previewUrl = null;
 
   if (apiKeyInput) {
     const savedKey = window.localStorage.getItem('receipt_api_key');
@@ -21,7 +33,8 @@
   }
 
   const updateCounter = () => {
-    const length = textarea.value.length;
+    const includeTextChecked = includeText instanceof HTMLInputElement ? includeText.checked : true;
+    const length = includeTextChecked ? textarea.value.length : 0;
     counter.textContent = `${length}/${maxChars}`;
   };
 
@@ -46,6 +59,62 @@
     } else {
       feedback.classList.remove('error');
     }
+  };
+
+  const setImagePreview = (file) => {
+    if (!(imagePreview && imagePreviewImg && imagePreviewName && includeImage instanceof HTMLInputElement)) {
+      return;
+    }
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    previewUrl = URL.createObjectURL(file);
+    imagePreviewImg.src = previewUrl;
+    imagePreviewName.textContent = `${file.name} · ${Math.round(file.size / 1024)}KB`;
+    imagePreview.classList.remove('hidden');
+    includeImage.disabled = false;
+    includeImage.checked = true;
+  };
+
+  const clearImagePreview = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+    }
+    if (imagePreviewImg) {
+      imagePreviewImg.removeAttribute('src');
+    }
+    if (imagePreviewName) {
+      imagePreviewName.textContent = '';
+    }
+    if (imagePreview) {
+      imagePreview.classList.add('hidden');
+    }
+    if (imageInput instanceof HTMLInputElement) {
+      imageInput.value = '';
+    }
+    if (includeImage instanceof HTMLInputElement) {
+      includeImage.checked = false;
+      includeImage.disabled = true;
+    }
+    selectedImage = null;
+  };
+
+  const handleImageFile = (file) => {
+    if (!file) {
+      clearImagePreview();
+      return;
+    }
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setFeedback('Unsupported image type. Use PNG, JPEG, GIF, or BMP.', true);
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setFeedback('Image is too large. Max size is 5MB.', true);
+      return;
+    }
+    selectedImage = file;
+    setImagePreview(file);
   };
 
   const updateStatusBadge = (connected) => {
@@ -92,6 +161,9 @@
         .replace(/>/g, '&gt;')
         .replace(/\"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    const imageNote = job.hasImage
+      ? `<p class="image-indicator">Image attached${job.imageMime ? ` (${escapeHtml(job.imageMime)})` : ''}</p>`
+      : '';
     lastJob.innerHTML = `
       <div class="result-meta">
         <span class="chip ${escapeHtml(statusClass)}">${escapeHtml(job.status)}</span>
@@ -99,6 +171,7 @@
         <span>${escapeHtml(job.createdAt)}</span>
       </div>
       <p class="result-preview">${escapeHtml(job.text || job.preview || '')}</p>
+      ${imageNote}
     `;
   };
 
@@ -132,24 +205,55 @@
 
   const submitPrint = async () => {
     const text = textarea.value;
-    if (!text.trim()) {
+    const includeTextChecked = includeText instanceof HTMLInputElement ? includeText.checked : true;
+    const includeImageChecked = includeImage instanceof HTMLInputElement ? includeImage.checked : false;
+    if (!includeTextChecked && !includeImageChecked) {
+      setFeedback('Select text and/or image to print.', true);
+      return;
+    }
+    if (includeTextChecked && !text.trim()) {
       setFeedback('Enter text before printing.', true);
+      return;
+    }
+    if (includeImageChecked && !selectedImage) {
+      setFeedback('Select an image before printing.', true);
       return;
     }
     printButton.disabled = true;
     setFeedback('Sending to printer queue...', false);
 
     try {
-      const headers = { 'Content-Type': 'application/json' };
+      const headers = {};
       const apiKey = getApiKey();
       if (apiKey) {
         headers['X-API-Key'] = apiKey;
       }
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ text })
-      });
+      let response;
+      if (includeImageChecked && selectedImage) {
+        const formData = new FormData();
+        if (includeTextChecked) {
+          formData.append('text', text);
+        }
+        formData.append('image', selectedImage);
+        formData.append('includeText', includeTextChecked ? 'true' : 'false');
+        formData.append('includeImage', 'true');
+        response = await fetch('/api/print', {
+          method: 'POST',
+          headers,
+          body: formData
+        });
+      } else {
+        headers['Content-Type'] = 'application/json';
+        response = await fetch('/api/print', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            text: includeTextChecked ? text : '',
+            includeText: includeTextChecked,
+            includeImage: false
+          })
+        });
+      }
       const data = await response.json();
       if (!response.ok) {
         setFeedback(data.error || 'Print failed.', true);
@@ -166,6 +270,41 @@
 
   textarea.addEventListener('input', updateCounter);
   printButton.addEventListener('click', submitPrint);
+  if (includeText instanceof HTMLInputElement) {
+    includeText.addEventListener('change', () => {
+      textarea.disabled = !includeText.checked;
+      updateCounter();
+    });
+  }
+  if (includeImage instanceof HTMLInputElement) {
+    includeImage.disabled = true;
+  }
+  if (dropZone && imageInput instanceof HTMLInputElement) {
+    dropZone.addEventListener('click', () => imageInput.click());
+    dropZone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = event.dataTransfer && event.dataTransfer.files ? event.dataTransfer.files[0] : null;
+      handleImageFile(file);
+    });
+  }
+  if (imageInput instanceof HTMLInputElement) {
+    imageInput.addEventListener('change', () => {
+      const file = imageInput.files ? imageInput.files[0] : null;
+      handleImageFile(file);
+    });
+  }
+  if (imageRemove) {
+    imageRemove.addEventListener('click', () => clearImagePreview());
+  }
+  clearImagePreview();
   updateCounter();
   refreshStatus();
   setInterval(refreshStatus, 5000);

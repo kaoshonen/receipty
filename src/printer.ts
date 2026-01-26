@@ -3,7 +3,7 @@ import net from 'node:net';
 import escpos from 'escpos';
 import escposUsb from 'escpos-usb';
 import { AppConfig, CutMode } from './config';
-import { buildEscPosPayload } from './escpos';
+import { buildEscPosJobPayload } from './escpos';
 import type { AppLogger } from './logger';
 import { parseStatusBytes, StatusReport } from './printer-status';
 import { sleep, withTimeout } from './utils';
@@ -12,6 +12,11 @@ import { sleep, withTimeout } from './utils';
 
 export interface PrintResult {
   bytes: number;
+}
+
+export interface PrintJob {
+  text?: string;
+  image?: Buffer | null;
 }
 
 export interface PrinterStatus {
@@ -28,7 +33,7 @@ export interface ControlResult {
 }
 
 export interface PrinterClient {
-  print: (text: string) => Promise<PrintResult>;
+  print: (job: PrintJob) => Promise<PrintResult>;
   status: () => Promise<PrinterStatus>;
   control: (command: ControlCommand) => Promise<ControlResult>;
 }
@@ -46,7 +51,7 @@ export function createPrinter(config: AppConfig, logger: AppLogger): PrinterClie
   const runExclusive = createOperationQueue();
   const baseClient = config.printerMode === 'usb' ? createUsbPrinter(config, logger) : createEthernetPrinter(config, logger);
   return {
-    print: (text) => runExclusive(() => baseClient.print(text)),
+    print: (job) => runExclusive(() => baseClient.print(job)),
     status: baseClient.status,
     control: (command) => runExclusive(() => baseClient.control(command))
   };
@@ -76,14 +81,19 @@ function createUsbPrinter(config: AppConfig, logger: AppLogger): PrinterClient {
   };
 
   return {
-    print: async (text) => {
-      const payload = buildEscPosPayload(text, totalFeedLines, cutMode);
+    print: async (job) => {
+      const payload = await buildEscPosJobPayload({
+        text: job.text,
+        image: job.image ?? undefined,
+        feedLines: totalFeedLines,
+        cutMode
+      });
       if (devicePath) {
         await writeToDevicePath(devicePath, payload, config.writeTimeoutMs);
         return { bytes: payload.length };
       }
 
-      await writeUsbViaEscpos(vid, pid, payload, text, totalFeedLines, cutMode);
+      await writeUsbViaEscpos(vid, pid, payload, job.text, totalFeedLines, cutMode);
       return { bytes: payload.length };
     },
     status: async () => {
@@ -135,7 +145,7 @@ async function writeUsbViaEscpos(
   vendorId: number,
   productId: number,
   payload: Buffer,
-  text: string,
+  text: string | undefined,
   feedLines: number,
   cutMode: CutMode
 ): Promise<void> {
@@ -152,7 +162,7 @@ async function writeUsbViaEscpos(
       try {
         if (typeof printer.raw === 'function') {
           printer.raw(payload);
-        } else {
+        } else if (text) {
           printer.text(text);
           if (feedLines > 0 && typeof printer.feed === 'function') {
             printer.feed(feedLines);
@@ -160,6 +170,8 @@ async function writeUsbViaEscpos(
           if (cutMode !== 'none' && typeof printer.cut === 'function') {
             printer.cut(cutMode === 'partial');
           }
+        } else {
+          throw new Error('USB printer does not support raw image payloads.');
         }
         if (typeof printer.close === 'function') {
           printer.close();
@@ -203,8 +215,13 @@ function createEthernetPrinter(config: AppConfig, logger: AppLogger): PrinterCli
   const writeTimeout = config.writeTimeoutMs;
 
   return {
-    print: async (text) => {
-      const payload = buildEscPosPayload(text, totalFeedLines, cutMode);
+    print: async (job) => {
+      const payload = await buildEscPosJobPayload({
+        text: job.text,
+        image: job.image ?? undefined,
+        feedLines: totalFeedLines,
+        cutMode
+      });
       await retryNetwork(() => writeEthernetPayload(host, port, payload, connectTimeout, writeTimeout), logger);
       return { bytes: payload.length };
     },

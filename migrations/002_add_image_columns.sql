@@ -1,0 +1,3 @@
+ALTER TABLE jobs ADD COLUMN image_data BLOB;
+ALTER TABLE jobs ADD COLUMN image_hash TEXT;
+ALTER TABLE jobs ADD COLUMN image_mime TEXT;

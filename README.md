@@ -11,6 +11,7 @@ A lightweight web UI and API to send plain-text jobs to an Epson TM-T88IV receip
 - Printer status checks and readiness endpoints
 - SQLite-backed job audit trail with error stacks
 - Reprint previous jobs from the Activity log
+- Drag-and-drop image printing (PNG/JPEG/GIF/BMP)
 - Printer control page (feed, cut, status report, status printout)
 - USB device path override and Ethernet RAW TCP
 - Docker Compose profiles for usb and ethernet (Docker Hub image)
@@ -81,7 +82,10 @@ Config is driven by environment variables and an optional JSON file.
 | `PRINTER_PORT` | No | `9100` | RAW printing |
 
 ## API
-- `POST /api/print` `{ "text": "..." }`
+- `POST /api/print`
+  - JSON: `{ "text": "...", "includeText": true, "includeImage": false, "imageBase64": "...", "imageMime": "image/png" }`
+  - JSON data URL: `{ "image": "data:image/png;base64,..." }`
+  - multipart/form-data fields: `text`, `includeText`, `includeImage`, file field `image`
 - `POST /api/jobs/:id/reprint`
 - `POST /api/control/feed`
 - `POST /api/control/cut`
@@ -93,6 +97,7 @@ Config is driven by environment variables and an optional JSON file.
 - `GET /readyz`
 
 If `APP_HOST` is not localhost, include `X-API-Key` in API requests.
+Image uploads are limited to 5MB.
 
 ## Development
 ```bash
