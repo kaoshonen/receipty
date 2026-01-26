@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeText } from '../src/utils';
+import { formatDisplayTime, sanitizeText } from '../src/utils';
 import { buildEscPosPayload } from '../src/escpos';
 
 describe('sanitizeText', () => {
@@ -22,5 +22,12 @@ describe('buildEscPosPayload', () => {
     expect(payload.slice(0, 3)).toEqual(Buffer.from('Hi\n', 'ascii'));
     expect(payload.includes(0x0a)).toBe(true);
     expect(payload.slice(-3)).toEqual(Buffer.from([0x1d, 0x56, 0x01]));
+  });
+});
+
+describe('formatDisplayTime', () => {
+  it('formats timestamps in 12-hour time', () => {
+    const output = formatDisplayTime('2026-01-26T15:45:00Z', { timeZone: 'UTC' });
+    expect(output).toBe('Jan 26, 2026 3:45 PM');
   });
 });

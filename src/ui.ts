@@ -1,5 +1,5 @@
 import type { JobRow, JobListResult } from './jobs';
-import { escapeHtml } from './utils';
+import { escapeHtml, formatDisplayTime } from './utils';
 
 function renderLayout(title: string, body: string, extraScripts: string[] = []): string {
   const scripts = extraScripts.map((src) => `<script src="${src}" defer></script>`).join('');
@@ -56,7 +56,7 @@ export function renderHome(options: {
     ? `<div class="result-meta">
         <span class="chip ${escapeHtml(options.lastJob.status)}">${escapeHtml(options.lastJob.status)}</span>
         <span>Job #${options.lastJob.id}</span>
-        <span>${escapeHtml(options.lastJob.created_at)}</span>
+        <span>${escapeHtml(formatDisplayTime(options.lastJob.created_at))}</span>
       </div>
       <p class="result-preview">${escapeHtml(options.lastJob.text || options.lastJob.preview || '')}</p>`
     : '<p class="result-empty">No jobs yet. Your first print will appear here.</p>';
@@ -109,7 +109,7 @@ export function renderActivity(data: JobListResult): string {
     .map((job) => {
       const errorSummary = job.error ? escapeHtml(job.error.split('\n')[0].slice(0, 120)) : '';
       return `<tr>
-        <td>${escapeHtml(job.created_at)}</td>
+        <td>${escapeHtml(formatDisplayTime(job.created_at))}</td>
         <td>${escapeHtml(job.mode)}</td>
         <td>${job.bytes}</td>
         <td><span class="chip ${escapeHtml(job.status)}">${escapeHtml(job.status)}</span></td>
@@ -206,7 +206,7 @@ export function renderJobDetail(job: JobRow): string {
         </div>
         <div>
           <span class="field-label">Timestamp</span>
-          <p>${escapeHtml(job.created_at)}</p>
+          <p>${escapeHtml(formatDisplayTime(job.created_at))}</p>
         </div>
         <div>
           <span class="field-label">Mode</span>

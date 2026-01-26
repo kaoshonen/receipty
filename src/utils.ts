@@ -51,6 +51,41 @@ export function formatIso(date = new Date()): string {
   return date.toISOString();
 }
 
+export function formatDisplayTime(
+  value: string | Date,
+  options: { timeZone?: string } = {}
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value instanceof Date ? '' : value;
+  }
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: options.timeZone,
+  });
+  const parts = formatter.formatToParts(date);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  const month = lookup.month;
+  const day = lookup.day;
+  const year = lookup.year;
+  const hour = lookup.hour;
+  const minute = lookup.minute;
+  const dayPeriod = lookup.dayPeriod;
+
+  if (!month || !day || !year || !hour || !minute || !dayPeriod) {
+    return formatter.format(date);
+  }
+
+  return `${month} ${day}, ${year} ${hour}:${minute} ${dayPeriod}`;
+}
+
 export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
