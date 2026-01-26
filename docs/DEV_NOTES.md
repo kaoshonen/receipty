@@ -22,3 +22,18 @@ kill <pid>
 
 ## Repo hygiene
 Always keep `.DS_Store` out of the repo. It should be ignored via `.gitignore`.
+
+## Docker Hub multi-arch reminder
+If you see this error when pulling on Linux:
+```
+no matching manifest for linux/amd64 in the manifest list entries
+```
+it means the image was pushed without a linux/amd64 manifest (often when building on macOS).
+
+Fix: use buildx to push a multi-arch manifest:
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t kaoshonen/receipty:latest -t kaoshonen/receipty:<version> --push .
+```
+
+Reminder: always use the buildx multi-arch command when publishing to Docker Hub.
