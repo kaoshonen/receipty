@@ -1,6 +1,8 @@
 services:
   receipty-ethernet:
     image: kaoshonen/receipty:latest
+    build: .
+    pull_policy: never
     profiles: ["ethernet"]
     ports:
       - "3000:3000"
@@ -15,6 +17,8 @@ services:
 
   receipty-usb:
     image: kaoshonen/receipty:latest
+    build: .
+    pull_policy: never
     profiles: ["usb"]
     ports:
       - "3000:3000"

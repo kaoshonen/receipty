@@ -19,3 +19,6 @@ If you want to do it manually:
 lsof -nP -iTCP:3000 -sTCP:LISTEN
 kill <pid>
 ```
+
+## Repo hygiene
+Always keep `.DS_Store` out of the repo. It should be ignored via `.gitignore`.

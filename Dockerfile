@@ -28,6 +28,7 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
 COPY --from=build /app/migrations ./migrations
 
+RUN mkdir -p /app/data
 RUN chown -R node:node /app
 USER node
 
