@@ -52,13 +52,17 @@ export function renderHome(options: {
   lastJob?: JobRow;
   requiresApiKey: boolean;
 }): string {
+  const lastJobImageNote = options.lastJob?.image_data
+    ? `<p class="image-indicator">Image attached${options.lastJob.image_mime ? ` (${escapeHtml(options.lastJob.image_mime)})` : ''}</p>`
+    : '';
   const lastJobMarkup = options.lastJob
     ? `<div class="result-meta">
         <span class="chip ${escapeHtml(options.lastJob.status)}">${escapeHtml(options.lastJob.status)}</span>
         <span>Job #${options.lastJob.id}</span>
         <span>${escapeHtml(formatDisplayTime(options.lastJob.created_at))}</span>
       </div>
-      <p class="result-preview">${escapeHtml(options.lastJob.text || options.lastJob.preview || '')}</p>`
+      <p class="result-preview">${escapeHtml(options.lastJob.text || options.lastJob.preview || '')}</p>
+      ${lastJobImageNote}`
     : '<p class="result-empty">No jobs yet. Your first print will appear here.</p>';
 
   const apiKeyBlock = options.requiresApiKey
@@ -85,6 +89,33 @@ export function renderHome(options: {
         <span class="field-label">Receipt text</span>
         <textarea id="print-text" data-max="${options.maxChars}" placeholder="Type receipt text here..."></textarea>
       </label>
+      <div class="field">
+        <span class="field-label">Receipt image (optional)</span>
+        <div id="image-drop" class="drop-zone">
+          <div class="drop-zone-content">
+            <p>Drag & drop an image here, or click to browse.</p>
+            <span>PNG, JPEG, GIF, BMP · up to 2MB</span>
+          </div>
+        </div>
+        <input id="image-input" type="file" accept="image/png,image/jpeg,image/gif,image/bmp" hidden />
+        <div id="image-preview" class="image-preview hidden">
+          <img id="image-preview-img" alt="Selected image preview" />
+          <div class="image-meta">
+            <span id="image-preview-name"></span>
+            <button id="image-remove" class="action-button" type="button">Remove</button>
+          </div>
+        </div>
+      </div>
+      <div class="print-options">
+        <label class="checkbox">
+          <input id="include-text" type="checkbox" checked />
+          <span>Print text</span>
+        </label>
+        <label class="checkbox">
+          <input id="include-image" type="checkbox" />
+          <span>Print image</span>
+        </label>
+      </div>
       ${apiKeyBlock}
       <button id="print-button" class="primary">Print Now</button>
       <div id="print-feedback" class="feedback hidden"></div>
@@ -190,6 +221,9 @@ export function renderControl(options: { requiresApiKey: boolean }): string {
 }
 
 export function renderJobDetail(job: JobRow): string {
+  const imageNote = job.image_data
+    ? `<p class="image-indicator">Image attached${job.image_mime ? ` (${escapeHtml(job.image_mime)})` : ''}</p>`
+    : '';
   const errorBlock = job.error
     ? `<div class="card">
         <h2>Error Stack</h2>
@@ -220,6 +254,7 @@ export function renderJobDetail(job: JobRow): string {
       <div class="preview">
         <span class="field-label">Preview</span>
         <pre>${escapeHtml(job.text || job.preview)}</pre>
+        ${imageNote}
       </div>
     </section>
     ${errorBlock}

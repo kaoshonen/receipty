@@ -4,14 +4,15 @@ import crypto from 'node:crypto';
 import Fastify from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
+import multipart from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
 import { loadConfig } from './config';
 import { openDb } from './db';
 import { createJobRepository } from './jobs';
 import { JobQueue } from './queue';
 import { createPrinter } from './printer';
-import { buildEscPosPayload } from './escpos';
-import { formatIso, hashText, previewText, sanitizeText } from './utils';
+import { buildEscPosJobPayload } from './escpos';
+import { formatIso, hashBuffer, hashText, previewText, sanitizeText } from './utils';
 import type { StatusReport } from './printer-status';
 import { renderActivity, renderControl, renderHome, renderJobDetail } from './ui';
 
@@ -30,10 +31,19 @@ const printer = createPrinter(config, fastify.log);
 const queue = new JobQueue(repo, printer, fastify.log);
 queue.start();
 const totalFeedLines = config.feedLines + config.cutFeedLines;
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/bmp']);
+const IMAGE_BODY_LIMIT = Math.max(config.maxChars * 4, MAX_IMAGE_BYTES * 2 + 1024);
 
 fastify.register(fastifyStatic, {
   root: path.join(process.cwd(), 'public'),
   prefix: '/static/'
+});
+
+fastify.register(multipart, {
+  limits: {
+    fileSize: MAX_IMAGE_BYTES
+  }
 });
 
 fastify.register(rateLimit, {
@@ -100,31 +110,68 @@ fastify.get('/jobs/:id', async (request, reply) => {
   return renderJobDetail(job);
 });
 
-fastify.post('/api/print', { config: { rateLimit: true } }, async (request, reply) => {
-  const body = request.body as { text?: unknown } | undefined;
-  const rawText = typeof body?.text === 'string' ? body.text : undefined;
-  if (!rawText) {
-    reply.code(400).send({ error: 'text is required' });
-    return;
+fastify.post(
+  '/api/print',
+  { config: { rateLimit: true }, bodyLimit: IMAGE_BODY_LIMIT },
+  async (request, reply) => {
+    let parsed: ParsedPrintRequest;
+    try {
+      parsed = request.isMultipart()
+        ? await parseMultipartPrintRequest(request)
+        : parseJsonPrintRequest(request.body as Record<string, unknown> | undefined);
+    } catch (error) {
+      reply.code(400);
+      return reply.send({ error: error instanceof Error ? error.message : 'Invalid print request.' });
+    }
+
+    const includeText = parsed.includeText ?? Boolean(parsed.text && parsed.text.trim().length > 0);
+    const includeImage = parsed.includeImage ?? Boolean(parsed.image);
+
+    if (!includeText && !includeImage) {
+      reply.code(400);
+      return reply.send({ error: 'Provide text, an image, or both.' });
+    }
+
+    const sanitized = includeText ? sanitizeText(parsed.text ?? '') : '';
+    if (includeText && sanitized.length === 0) {
+      reply.code(400);
+      return reply.send({ error: 'text must include printable characters' });
+    }
+    if (includeText && sanitized.length > config.maxChars) {
+      reply.code(400);
+      return reply.send({ error: `text exceeds ${config.maxChars} characters` });
+    }
+
+    if (includeImage && !parsed.image) {
+      reply.code(400);
+      return reply.send({ error: 'image is required when includeImage is true' });
+    }
+
+    if (includeImage && parsed.image && parsed.image.length > MAX_IMAGE_BYTES) {
+      reply.code(400);
+      return reply.send({ error: `image exceeds ${Math.floor(MAX_IMAGE_BYTES / 1024 / 1024)}MB limit` });
+    }
+
+    let jobId: number;
+    try {
+      jobId = await queueJob({
+        text: includeText ? sanitized : '',
+        image: includeImage ? parsed.image ?? null : null,
+        imageMime: includeImage ? parsed.imageMime ?? null : null
+      });
+    } catch (error) {
+      reply.code(400);
+      return reply.send({
+        error: error instanceof Error ? error.message : 'Failed to process print job.'
+      });
+    }
+
+    fastify.log.info({ jobId }, 'job queued');
+    queue.kick();
+
+    reply.send({ jobId: String(jobId), status: 'queued' });
   }
-
-  const sanitized = sanitizeText(rawText);
-  if (sanitized.length === 0) {
-    reply.code(400).send({ error: 'text must include printable characters' });
-    return;
-  }
-  if (sanitized.length > config.maxChars) {
-    reply.code(400).send({ error: `text exceeds ${config.maxChars} characters` });
-    return;
-  }
-
-  const jobId = queueSanitizedJob(sanitized);
-
-  fastify.log.info({ jobId }, 'job queued');
-  queue.kick();
-
-  reply.send({ jobId: String(jobId), status: 'queued' });
-});
+);
 
 fastify.post('/api/jobs/:id/reprint', { config: { rateLimit: true } }, async (request, reply) => {
   const id = Number((request.params as { id: string }).id);
@@ -139,7 +186,7 @@ fastify.post('/api/jobs/:id/reprint', { config: { rateLimit: true } }, async (re
   }
 
   const sanitized = sanitizeText(job.text);
-  if (sanitized.length === 0) {
+  if (job.text && sanitized.length === 0 && !job.image_data) {
     reply.code(400).send({ error: 'text must include printable characters' });
     return;
   }
@@ -148,7 +195,17 @@ fastify.post('/api/jobs/:id/reprint', { config: { rateLimit: true } }, async (re
     return;
   }
 
-  const jobId = queueSanitizedJob(sanitized);
+  let jobId: number;
+  try {
+    jobId = await queueJob({
+      text: sanitized,
+      image: job.image_data,
+      imageMime: job.image_mime
+    });
+  } catch (error) {
+    reply.code(400).send({ error: error instanceof Error ? error.message : 'Reprint failed.' });
+    return;
+  }
   fastify.log.info({ jobId, sourceJobId: id }, 'job reprint queued');
   queue.kick();
 
@@ -175,6 +232,9 @@ fastify.get('/api/jobs', { config: { rateLimit: true } }, async (request) => {
       preview: job.preview,
       text: job.text,
       textHash: job.text_hash,
+      hasImage: Boolean(job.image_data),
+      imageMime: job.image_mime,
+      imageHash: job.image_hash,
       error: job.error,
       errorSummary: job.error ? job.error.split('\n')[0] : null
     })),
@@ -223,7 +283,7 @@ fastify.post('/api/control/status/print', { config: { rateLimit: true } }, async
       if (sanitized.length > config.maxChars) {
         return { ...result, error: `Status report exceeds ${config.maxChars} characters and could not be printed.` };
       }
-      const jobId = queueSanitizedJob(sanitized);
+      const jobId = await queueJob({ text: sanitized });
       queue.kick();
       return { ...result, jobId: String(jobId) };
     }
@@ -272,15 +332,164 @@ function isApiKeyValid(provided: string, expected: string): boolean {
   return crypto.timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
-function queueSanitizedJob(sanitized: string): number {
-  const payload = buildEscPosPayload(sanitized, totalFeedLines, config.cutMode);
+interface ParsedPrintRequest {
+  text?: string;
+  includeText?: boolean;
+  image?: Buffer;
+  imageMime?: string;
+  includeImage?: boolean;
+}
+
+async function queueJob(options: {
+  text: string;
+  image?: Buffer | null;
+  imageMime?: string | null;
+}): Promise<number> {
+  const payload = await buildEscPosJobPayload({
+    text: options.text.length > 0 ? options.text : undefined,
+    image: options.image ?? undefined,
+    feedLines: totalFeedLines,
+    cutMode: config.cutMode
+  });
+
+  const hasImage = Boolean(options.image);
+  const preview = buildJobPreview(options.text, hasImage, options.imageMime ?? undefined);
+
   return repo.insert({
     mode: config.printerMode,
     bytes: payload.length,
-    preview: previewText(sanitized),
-    textHash: hashText(sanitized),
-    text: sanitized
+    preview,
+    textHash: hashText(options.text),
+    text: options.text,
+    imageData: options.image ?? null,
+    imageHash: hasImage ? hashBuffer(options.image as Buffer) : null,
+    imageMime: options.imageMime ?? null
   });
+}
+
+function buildJobPreview(text: string, hasImage: boolean, imageMime?: string): string {
+  const textPreview = previewText(text);
+  if (!hasImage) {
+    return textPreview;
+  }
+  const label = imageMime ? `Image (${imageMime.replace('image/', '')})` : 'Image attached';
+  if (textPreview) {
+    return `${textPreview}\n[${label}]`;
+  }
+  return `[${label}]`;
+}
+
+async function parseMultipartPrintRequest(request: FastifyRequest): Promise<ParsedPrintRequest> {
+  const parts = request.parts();
+  let text: string | undefined;
+  let includeText: boolean | undefined;
+  let includeImage: boolean | undefined;
+  let image: Buffer | undefined;
+  let imageMime: string | undefined;
+
+  for await (const part of parts) {
+    if (part.type === 'file') {
+      if (part.fieldname !== 'image') {
+        await part.toBuffer();
+        continue;
+      }
+      if (!IMAGE_MIME_TYPES.has(part.mimetype)) {
+        throw new Error('Unsupported image type. Use PNG, JPEG, GIF, or BMP.');
+      }
+      image = await part.toBuffer();
+      imageMime = part.mimetype;
+      continue;
+    }
+
+    if (part.fieldname === 'text') {
+      text = typeof part.value === 'string' ? part.value : undefined;
+    }
+    if (part.fieldname === 'includeText') {
+      includeText = parseBoolean(part.value);
+    }
+    if (part.fieldname === 'includeImage') {
+      includeImage = parseBoolean(part.value);
+    }
+  }
+
+  return { text, includeText, includeImage, image, imageMime };
+}
+
+function parseJsonPrintRequest(body: Record<string, unknown> | undefined): ParsedPrintRequest {
+  if (!body) {
+    throw new Error('Request body is required.');
+  }
+  const text = typeof body.text === 'string' ? body.text : undefined;
+  const includeText = parseBoolean(body.includeText);
+  const includeImage = parseBoolean(body.includeImage);
+
+  const imageValue =
+    typeof body.imageBase64 === 'string'
+      ? body.imageBase64
+      : typeof body.imageData === 'string'
+          ? body.imageData
+          : typeof body.image === 'string'
+              ? body.image
+              : undefined;
+
+  const imageMimeHint = typeof body.imageMime === 'string' ? body.imageMime : undefined;
+
+  if (imageValue) {
+    const decoded = decodeBase64Image(imageValue, imageMimeHint);
+    return { text, includeText, includeImage, image: decoded.buffer, imageMime: decoded.mime };
+  }
+
+  return { text, includeText, includeImage };
+}
+
+function parseBoolean(value: unknown): boolean | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) {
+      return true;
+    }
+    if (['false', '0', 'no', 'off'].includes(normalized)) {
+      return false;
+    }
+  }
+  return undefined;
+}
+
+function decodeBase64Image(value: string, mimeHint?: string): { buffer: Buffer; mime: string } {
+  if (value.startsWith('data:')) {
+    const match = value.match(/^data:([^;]+);base64,(.*)$/);
+    if (!match) {
+      throw new Error('Invalid data URL for image.');
+    }
+    const mime = match[1];
+    if (!IMAGE_MIME_TYPES.has(mime)) {
+      throw new Error('Unsupported image type. Use PNG, JPEG, GIF, or BMP.');
+    }
+    const buffer = Buffer.from(match[2], 'base64');
+    if (buffer.length === 0) {
+      throw new Error('Image data was empty.');
+    }
+    return { buffer, mime };
+  }
+
+  if (!mimeHint) {
+    throw new Error('imageMime is required when sending base64 image data.');
+  }
+  if (!IMAGE_MIME_TYPES.has(mimeHint)) {
+    throw new Error('Unsupported image type. Use PNG, JPEG, GIF, or BMP.');
+  }
+
+  const buffer = Buffer.from(value, 'base64');
+  if (buffer.length === 0) {
+    throw new Error('Image data was empty.');
+  }
+  return { buffer, mime: mimeHint };
 }
 
 function formatStatusReport(status: StatusReport): string {
